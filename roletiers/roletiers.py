@@ -54,7 +54,8 @@ class RoleTiers(commands.Cog):
             "toggle": False,
             "count_commands": False,
             "tiers": [],
-            "ignore": []
+            "ignore": [],
+            "channel": [],
         }
         self.default_member = {
             "messages": 0
@@ -98,6 +99,7 @@ class RoleTiers(commands.Cog):
                 await self.bot.cog_disabled_in_guild(self, message.guild) or  # Cog disabled in guild
                 not self.guild_settings.get(message.guild.id, "toggle") or  # RoleTiers toggled off
                 message.author.bot or  # Message author is a bot
+                message.channel.id not in self.guild_settings.get(message.guild.id, "channel") or # Channel ignored
                 message.author.id in self.guild_settings.get(message.guild.id, "ignore")  # Message from ignored user
         ):
             return
@@ -156,6 +158,26 @@ class RoleTiers(commands.Cog):
     async def _count_commands(self, ctx: commands.Context, true_or_false: bool):
         """Set whether RoleTiers should count commands when counting messages."""
         self.guild_settings.set(ctx.guild.id, "count_commands", true_or_false)
+        return await ctx.tick()
+
+    @_role_tiers.group(name="channel", invoke_without_command=True)
+    async def _channel(self, ctx: commands):
+        """View and set RoleTiers channel allowlist."""
+        await ctx.maybe_send_embed(f"{humanize_list([f'{us.mention}' if (us := ctx.guild.get_channel(u)) else f'{u}' for u in self.guild_settings.get(ctx.guild.id, 'channel')])}" or "No channels are in the RoleTiers allow list yet.")
+        await ctx.send_help()
+
+    @_channel.command(name="add")
+    async def _channel_add(self, ctx: commands.Context, *channels: discord.TextChannel):
+        """Add a channel to the RoleTiers allow list."""
+        for c in channels:
+            self.guild_settings.append(ctx.guild.id, "channel", c.id, check=True)
+        return await ctx.tick()
+
+    @_channel.command(name="remove")
+    async def _channel_remove(self, ctx: commands.Context, *channels: discord.TextChannel):
+        """Remove from the RoleTiers allowed channe list"""
+        for c in channels:
+            self.guild_settings.remove(ctx.guild.id, "channel", c.id, check=True)
         return await ctx.tick()
 
     @_role_tiers.group(name="ignore", invoke_without_command=True)
@@ -329,7 +351,7 @@ class RoleTiers(commands.Cog):
 
         embed = discord.Embed(
             title="RoleTiers Settings",
-            description=f"**Toggle:** {guild_settings['toggle']}\n**Count Commands:** {guild_settings['count_commands']}\n**Ignored Users:** see `{ctx.clean_prefix}roletiers ignore`",
+            description=f"**Toggle:** {guild_settings['toggle']}\n**Count Commands:** {guild_settings['count_commands']}\n**Ignored Users:** see `{ctx.clean_prefix}roletiers ignore`\n**Ignored Channels:** see `{ctx.clean_prefix}roletiers channel`",
             color=await ctx.embed_color()
         )
 
