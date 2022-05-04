@@ -82,8 +82,8 @@ class TempRole(commands.Cog):
 
         For the time, enter in terms of weeks (w), days (d), and/or hours (h).
         """
-        mins = time.seconds//60
-        hours = mins//60
+        hours = time.seconds//3600
+        mins = hours//60
         if role in user.roles:
             return await ctx.send(f"That user already has {role.mention}!")
 
