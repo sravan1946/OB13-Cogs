@@ -82,8 +82,8 @@ class TempRole(commands.Cog):
 
         For the time, enter in terms of weeks (w), days (d), and/or hours (h).
         """
-        hours = time.seconds//3600
-        mins = hours//60
+        mins = time.seconds//60
+        hours = mins//60
         if role in user.roles:
             return await ctx.send(f"That user already has {role.mention}!")
 
@@ -106,12 +106,12 @@ class TempRole(commands.Cog):
             if role not in user.roles:
                 await user.add_roles(
                     role,
-                    reason=f"TempRole: added by {ctx.author}, expires in {time.days}d {time.seconds//3600}h"
+                    reason=f"TempRole: added by {ctx.author}, expires in <t:{int(end_time.timestamp())}:R>"
                 )
         else:
             return await ctx.send("I cannot assign this role!")
 
-        message = f"TempRole {role.mention} for {user.mention} has been added. Expires in {time.days} days {hours} hours {mins} minutes."
+        message = f"TempRole {role.mention} for {user.mention} has been added. Expires in <t:{int(end_time.timestamp())}:R>."
         await self._maybe_confirm(ctx, message)
 
         await self._maybe_send_log(ctx.guild, message)
