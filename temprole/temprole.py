@@ -109,7 +109,7 @@ class TempRole(commands.Cog):
         else:
             return await ctx.send("I cannot assign this role!")
 
-        message = f"TempRole {role.mention} for {user.mention} has been added. Expires in {time.days} days {time.seconds//3600} hours {time.seconds//60 if time.seconds > 60 else 0} minutes."
+        message = f"TempRole {role.mention} for {user.mention} has been added. Expires in {time.days} days {time.seconds//3600} hours {time.seconds//60 if time.seconds > 61 else 0} minutes."
         await self._maybe_confirm(ctx, message)
 
         await self._maybe_send_log(ctx.guild, message)
