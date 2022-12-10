@@ -111,23 +111,25 @@ class PrivateRooms(commands.Cog):
                         continue
 
                     for a in sys['active']:
-                        if not a[0] == before.channel.id:
+                        if a[0] != before.channel.id:
                             continue
 
                         # Owner left channel
                         if a[1] == member.id:
-                            remaining = None
-                            for m in before.channel.members:
-                                if not m.bot and m.id != member.id:
-                                    remaining = m
-                                    break
-
+                            remaining = next(
+                                (
+                                    m
+                                    for m in before.channel.members
+                                    if not m.bot and m.id != member.id
+                                ),
+                                None,
+                            )
                             lobby = member.guild.get_channel(sys['lobby'])
                             new_overwrites_lobby = lobby.overwrites
-                            new_overwrites_before = before.channel.overwrites
                             # Reassign to another user
                             if remaining:
                                 a[1] = remaining.id
+                                new_overwrites_before = before.channel.overwrites
                                 new_overwrites_before.pop(member)
                                 new_overwrites_before.update({remaining: discord.PermissionOverwrite(move_members=True, view_channel=True, connect=True)})
 
@@ -160,7 +162,6 @@ class PrivateRooms(commands.Cog):
                                         embed_links=embed_links,
                                     )
 
-                            # Remove channel
                             else:
                                 sys['active'].remove(a)
                                 if before.channel.permissions_for(member.guild.me).manage_channels:
@@ -423,10 +424,14 @@ class PrivateRooms(commands.Cog):
         """View the PrivateRooms settings in this server."""
 
         settings = await self.config.guild(ctx.guild).all()
-        embed = discord.Embed(title="PrivateRooms Settings", color=await ctx.embed_color(), description=f"""
+        embed = discord.Embed(
+            title="PrivateRooms Settings",
+            color=await ctx.embed_color(),
+            description=f"""
         **Server Toggle:** {settings['toggle']}
-        {"**Systems:** None" if not settings['systems'] else ""}
-        """)
+        {"" if settings['systems'] else "**Systems:** None"}
+        """,
+        )
 
         for name, system in settings['systems'].items():
             origin, lobby, log = None, None, None

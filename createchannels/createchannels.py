@@ -70,10 +70,9 @@ class CreateChannels(commands.Cog):
                 timeout = await self.config.guild(member.guild).voice.timeout()
                 try:
                     ind = [a[0] for a in active].index(vc.id)
-                    if not vc.members:
-                        if time.time() > active[ind][2]+timeout:
-                            await vc.delete(reason="CreateVoice: inactive VC")
-                            active.pop(ind)
+                    if not vc.members and time.time() > active[ind][2] + timeout:
+                        await vc.delete(reason="CreateVoice: inactive VC")
+                        active.pop(ind)
                 except ValueError:
                     pass
         return
@@ -105,7 +104,7 @@ class CreateChannels(commands.Cog):
         if not await self.config.guild(ctx.guild).voice.toggle(): return
 
         role_req = await self.config.guild(ctx.guild).voice.roles()
-        if role_req and not bool(set(role_req) & set([r.id for r in ctx.author.roles])):
+        if role_req and not bool(set(role_req) & {r.id for r in ctx.author.roles}):
             return await ctx.send(await self.config.guild(ctx.guild).voice.role_req_msg())
 
         active = await self.config.guild(ctx.guild).voice.active()
@@ -134,12 +133,12 @@ class CreateChannels(commands.Cog):
         overwrite = category.overwrites
         overwrite[ctx.author] = overwrite.get(ctx.author, discord.PermissionOverwrite())
         overwrite[ctx.author].update(manage_channels=True)
-        if max_users is not None:
-            if not(99 >= max_users >= 1):
-                return await ctx.send("The user limit should be between 1 and 99 users!")
-            new = await ctx.guild.create_voice_channel(name=name, category=category, overwrites=overwrite, user_limit=max_users)
-        else:
+        if max_users is None:
             new = await ctx.guild.create_voice_channel(name=name, category=category, overwrites=overwrite)
+        elif not(99 >= max_users >= 1):
+            return await ctx.send("The user limit should be between 1 and 99 users!")
+        else:
+            new = await ctx.guild.create_voice_channel(name=name, category=category, overwrites=overwrite, user_limit=max_users)
         async with self.config.guild(ctx.guild).voice.active() as a:
             a.append((new.id, ctx.author.id, time.time()))
 
@@ -252,7 +251,7 @@ class CreateChannels(commands.Cog):
         if not await self.config.guild(ctx.guild).text.toggle(): return
 
         role_req = await self.config.guild(ctx.guild).text.roles()
-        if role_req and not bool(set(role_req) & set([r.id for r in ctx.author.roles])):
+        if role_req and not bool(set(role_req) & {r.id for r in ctx.author.roles}):
             return await ctx.send(await self.config.guild(ctx.guild).text.role_req_msg())
 
         active = await self.config.guild(ctx.guild).text.active()

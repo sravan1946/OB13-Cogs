@@ -50,11 +50,11 @@ class RestrictedRolePerms(commands.Cog):
     async def _has_rule(rules, author_roles, role1):
         perms = False
         for ar in author_roles:
-            found = rules.get(ar)
-            if found and role1 in found:
-                perms = True
-            elif found and "all" in found:
-                perms = None
+            if found := rules.get(ar):
+                if role1 in found:
+                    perms = True
+                elif "all" in found:
+                    perms = None
         return perms
 
     @commands.bot_has_permissions(manage_roles=True)
@@ -128,7 +128,7 @@ class RestrictedRolePerms(commands.Cog):
         if role in member.roles:
             return await ctx.send("The member already has the role!")
 
-        if role < ctx.guild.me.top_role and role not in member.roles:
+        if role < ctx.guild.me.top_role:
             await member.add_roles(role, reason=f"RRP: assigned by {ctx.author.display_name}#{ctx.author.discriminator}")
         else:
             return await ctx.send("I do not have permissions to assign this role!")
@@ -185,17 +185,16 @@ class RestrictedRolePerms(commands.Cog):
             rules_for_roles = []
             async with self.config.guild(ctx.guild).mentionable.rules() as config_rules:
                 for r in config_rules.keys():
-                    ro = ctx.guild.get_role(int(r))
-                    if ro:
+                    if ro := ctx.guild.get_role(int(r)):
                         rules_for_roles.append(ro.mention)
                     else:
                         del config_rules[r]
 
             desc = f"""
             **Toggle:** {rules["toggle"]}
-            **Error Message:** {rules['message'] if rules['message'] else "Default"}
+            **Error Message:** {rules['message'] or "Default"}
             **Success Message:** {f"{rules['success'][0]}, {rules['success'][1]}" if rules['success'] else "Default"}
-            **Rules:** {"None" if not rules['rules'] else humanize_list(rules_for_roles)}"""
+            **Rules:** {humanize_list(rules_for_roles) if rules['rules'] else "None"}"""
 
             return await ctx.send(embed=discord.Embed(
                 title="RRP Mentionability Rules",
@@ -213,8 +212,7 @@ class RestrictedRolePerms(commands.Cog):
                 role_rules = []
                 async with self.config.guild(ctx.guild).mentionable.rules() as config_rules:
                     for r in config_rules[str(role.id)]:
-                        ro = ctx.guild.get_role(int(r))
-                        if ro:
+                        if ro := ctx.guild.get_role(int(r)):
                             role_rules.append(ro.mention)
                         else:
                             config_rules[str(role.id)].remove(r)
@@ -231,17 +229,16 @@ class RestrictedRolePerms(commands.Cog):
             rules_for_roles = []
             async with self.config.guild(ctx.guild).assignable.rules() as config_rules:
                 for r in config_rules.keys():
-                    ro = ctx.guild.get_role(int(r))
-                    if ro:
+                    if ro := ctx.guild.get_role(int(r)):
                         rules_for_roles.append(ro.mention)
                     else:
                         del config_rules[r]
 
             desc = f"""
                 **Toggle:** {rules["toggle"]}
-                **Error Message:** {rules['message'] if rules['message'] else "Default"}
+                **Error Message:** {rules['message'] or "Default"}
                 **Success Message:** {f"{rules['success'][0]}, {rules['success'][1]}" if rules['success'] else "Default"}
-                **Rules:** {"None" if not rules['rules'] else humanize_list(rules_for_roles)}"""
+                **Rules:** {humanize_list(rules_for_roles) if rules['rules'] else "None"}"""
 
             return await ctx.send(embed=discord.Embed(
                 title="RRP Assignability Rules",
@@ -259,8 +256,7 @@ class RestrictedRolePerms(commands.Cog):
                 role_rules = []
                 async with self.config.guild(ctx.guild).assignable.rules() as config_rules:
                     for r in config_rules[str(role.id)]:
-                        ro = ctx.guild.get_role(int(r))
-                        if ro:
+                        if ro := ctx.guild.get_role(int(r)):
                             role_rules.append(ro.mention)
                         else:
                             config_rules[str(role.id)].remove(r)
@@ -376,34 +372,34 @@ class RestrictedRolePerms(commands.Cog):
 
         async with self.config.guild(ctx.guild).mentionable.rules() as rules:
             if not rules.get(str(role_to_give_perms_to.id)):
-                return await ctx.send(f"There no rule for that role!")
+                return await ctx.send("There no rule for that role!")
             for role_to_edit in roles_to_edit_mentionability:
-                if role_to_edit != "all":
-                    if true_or_false:
-                        if role_to_edit.id in rules[str(role_to_give_perms_to.id)]:
-                            await ctx.send(f"Cannot add {role_to_edit.mention} as it was already in the rule.")
-                            continue
-                        rules[str(role_to_give_perms_to.id)].append(role_to_edit.id)
-                        await ctx.send(f"{role_to_give_perms_to.mention} is now allowed to toggle mentionability for {role_to_edit.mention}")
-                    else:
-                        if role_to_edit.id not in rules[str(role_to_give_perms_to.id)]:
-                            await ctx.send(f"Cannot remove {role_to_edit.mention} as it was not in the rule.")
-                            continue
-                        rules[str(role_to_give_perms_to.id)].remove(role_to_edit.id)
-                        await ctx.send(f"{role_to_give_perms_to.mention} is no longer allowed to toggle mentionability for {role_to_edit.mention}")
-                else:
+                if role_to_edit == "all":
                     if true_or_false:
                         if role_to_edit in rules[str(role_to_give_perms_to.id)]:
-                            await ctx.send(f'Cannot add "all" as it was already in the rule.')
+                            await ctx.send('Cannot add "all" as it was already in the rule.')
                             continue
                         rules[str(role_to_give_perms_to.id)].append("all")
                         await ctx.send(f"{role_to_give_perms_to.mention} is now allowed to toggle mentionability for all roles below it.")
                     else:
                         if role_to_edit not in rules[str(role_to_give_perms_to.id)]:
-                            await ctx.send(f'Cannot remove "all" as it was not in the rule.')
+                            await ctx.send('Cannot remove "all" as it was not in the rule.')
                             continue
                         rules[str(role_to_give_perms_to.id)].remove("all")
                         await ctx.send(f"{role_to_give_perms_to.mention} is no longer allowed to toggle mentionability for {role_to_edit.mention}")
+
+                elif true_or_false:
+                    if role_to_edit.id in rules[str(role_to_give_perms_to.id)]:
+                        await ctx.send(f"Cannot add {role_to_edit.mention} as it was already in the rule.")
+                        continue
+                    rules[str(role_to_give_perms_to.id)].append(role_to_edit.id)
+                    await ctx.send(f"{role_to_give_perms_to.mention} is now allowed to toggle mentionability for {role_to_edit.mention}")
+                else:
+                    if role_to_edit.id not in rules[str(role_to_give_perms_to.id)]:
+                        await ctx.send(f"Cannot remove {role_to_edit.mention} as it was not in the rule.")
+                        continue
+                    rules[str(role_to_give_perms_to.id)].remove(role_to_edit.id)
+                    await ctx.send(f"{role_to_give_perms_to.mention} is no longer allowed to toggle mentionability for {role_to_edit.mention}")
 
     @_edit_rule.command(name="assignable")
     async def _edit_assignable(self, ctx: commands.Context, role_to_give_perms_to: discord.Role, true_or_false: bool, *roles_to_edit_assignability: typing.Union[discord.Role, ExplicitAll]):
@@ -425,38 +421,38 @@ class RestrictedRolePerms(commands.Cog):
 
         async with self.config.guild(ctx.guild).assignable.rules() as rules:
             if not rules.get(str(role_to_give_perms_to.id)):
-                return await ctx.send(f"There no rule for that role!")
+                return await ctx.send("There no rule for that role!")
             for role_to_edit in roles_to_edit_assignability:
-                if role_to_edit != "all":
-                    if true_or_false:
-                        if role_to_edit.id in rules[str(role_to_give_perms_to.id)]:
-                            await ctx.send(f"Cannot add {role_to_edit.mention} as it was already in the rule.")
-                            continue
-                        rules[str(role_to_give_perms_to.id)].append(role_to_edit.id)
-                        await ctx.send(
-                            f"{role_to_give_perms_to.mention} is now allowed to assign {role_to_edit.mention}")
-                    else:
-                        if role_to_edit.id not in rules[str(role_to_give_perms_to.id)]:
-                            await ctx.send(f"Cannot remove {role_to_edit.mention} as it was not in the rule.")
-                            continue
-                        rules[str(role_to_give_perms_to.id)].remove(role_to_edit.id)
-                        await ctx.send(
-                            f"{role_to_give_perms_to.mention} is no longer allowed to assign {role_to_edit.mention}")
-                else:
+                if role_to_edit == "all":
                     if true_or_false:
                         if role_to_edit in rules[str(role_to_give_perms_to.id)]:
-                            await ctx.send(f'Cannot add "all" as it was already in the rule.')
+                            await ctx.send('Cannot add "all" as it was already in the rule.')
                             continue
                         rules[str(role_to_give_perms_to.id)].append("all")
                         await ctx.send(
                             f"{role_to_give_perms_to.mention} is now allowed to assign all roles below it.")
                     else:
                         if role_to_edit not in rules[str(role_to_give_perms_to.id)]:
-                            await ctx.send(f'Cannot remove "all" as it was not in the rule.')
+                            await ctx.send('Cannot remove "all" as it was not in the rule.')
                             continue
                         rules[str(role_to_give_perms_to.id)].remove("all")
                         await ctx.send(
                             f"{role_to_give_perms_to.mention} is no longer allowed to assign {role_to_edit.mention}")
+
+                elif true_or_false:
+                    if role_to_edit.id in rules[str(role_to_give_perms_to.id)]:
+                        await ctx.send(f"Cannot add {role_to_edit.mention} as it was already in the rule.")
+                        continue
+                    rules[str(role_to_give_perms_to.id)].append(role_to_edit.id)
+                    await ctx.send(
+                        f"{role_to_give_perms_to.mention} is now allowed to assign {role_to_edit.mention}")
+                else:
+                    if role_to_edit.id not in rules[str(role_to_give_perms_to.id)]:
+                        await ctx.send(f"Cannot remove {role_to_edit.mention} as it was not in the rule.")
+                        continue
+                    rules[str(role_to_give_perms_to.id)].remove(role_to_edit.id)
+                    await ctx.send(
+                        f"{role_to_give_perms_to.mention} is no longer allowed to assign {role_to_edit.mention}")
 
     @_rrpset.group(name="toggle")
     async def _toggle(self, ctx: commands.Context):
@@ -506,7 +502,7 @@ class RestrictedRolePerms(commands.Cog):
             await self.config.guild(ctx.guild).mentionable.success.set(None)
         else:
             success_messages = message.split("//")
-            if not len(success_messages) > 1:
+            if len(success_messages) <= 1:
                 return await ctx.send("Please separate the 2 messages with `//`.")
             await self.config.guild(ctx.guild).mentionable.success.set((success_messages[0].strip(), success_messages[1].strip()))
         return await ctx.tick()
@@ -524,7 +520,7 @@ class RestrictedRolePerms(commands.Cog):
             await self.config.guild(ctx.guild).mentionable.success.set(None)
         else:
             success_messages = message.split("//")
-            if not len(success_messages) > 1:
+            if len(success_messages) <= 1:
                 return await ctx.send("Please separate the 2 messages with `//`.")
             await self.config.guild(ctx.guild).assignable.success.set((success_messages[0].strip(), success_messages[1].strip()))
         return await ctx.tick()

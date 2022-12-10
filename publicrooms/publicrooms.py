@@ -111,7 +111,7 @@ class PublicRooms(commands.Cog):
                         continue
 
                     for a in sys['active']:
-                        if not a[0] == before.channel.id:
+                        if a[0] != before.channel.id:
                             continue
 
                         # Everyone left channel
@@ -132,7 +132,7 @@ class PublicRooms(commands.Cog):
                             break
 
                         # Member with custom channel name left
-                        if sys['overrides'].get(str(member.id)) == before.channel.name :
+                        if sys['overrides'].get(str(member.id)) == before.channel.name:
                             # Find correct position of new channel
                             no_created = False
                             no_missing = False
@@ -150,23 +150,28 @@ class PublicRooms(commands.Cog):
                             except ValueError:
                                 no_created = True
 
-                            if before.channel.permissions_for(member.guild.me).manage_channels:
-                                if no_created or no_missing:
-                                    if no_created:
-                                        num = 1
-                                    public_vc = await before.channel.edit(
-                                        name=sys['channel_name'].replace("{num}", str(num)),
-                                        reason=f"PublicRooms: {member.display_name} left room with custom name",
-                                    )
-                                else:
-                                    public_vc = await before.channel.edit(
-                                        name=sys['channel_name'].replace("{num}", str(num)),
-                                        position=position,
-                                        reason=f"PublicRooms: {member.display_name} left room with custom name",
-                                    )
-                            else:
+                            if not before.channel.permissions_for(
+                                member.guild.me
+                            ).manage_channels:
                                 return
 
+                            if no_created:
+                                num = 1
+                                public_vc = await before.channel.edit(
+                                    name=sys['channel_name'].replace("{num}", str(num)),
+                                    reason=f"PublicRooms: {member.display_name} left room with custom name",
+                                )
+                            elif no_missing:
+                                public_vc = await before.channel.edit(
+                                    name=sys['channel_name'].replace("{num}", str(num)),
+                                    reason=f"PublicRooms: {member.display_name} left room with custom name",
+                                )
+                            else:
+                                public_vc = await before.channel.edit(
+                                    name=sys['channel_name'].replace("{num}", str(num)),
+                                    position=position,
+                                    reason=f"PublicRooms: {member.display_name} left room with custom name",
+                                )
                             log_channel, embed_links = await self._get_log(sys['log_channel'], member.guild)
                             if log_channel:
                                 await self._send_log(
@@ -196,86 +201,102 @@ class PublicRooms(commands.Cog):
                 for sys in systems.values():
 
                     # Joined an Origin channel of a system that is toggled on
-                    if sys['toggle'] and sys['origin'] == after.channel.id:
-                        # Create the new VC
-                        if not after.channel.category.permissions_for(member.guild.me).manage_channels:
-                            return
-                        channel_name = sys['overrides'].get(str(member.id))
-                        if channel_name:
-                            num = 0
-                            public_vc = await member.guild.create_voice_channel(
-                                name=channel_name,
-                                category=after.channel.category,
-                                position=after.channel.position+1,
-                                bitrate=min(sys['bitrate'] * 1000, member.guild.bitrate_limit),
-                                reason=f"PublicRooms: created by {member.display_name}",
-                            )
-                        else:
-                            # Find correct position of new channel
-                            no_created = False
-                            no_missing = False
-                            all_nums = [x[1] for x in sys['active']]
-                            try:
-                                num = list(set(range(1, max(all_nums) + 1)) - set(all_nums))[0]
-                                for i in sorted(sys['active'], key=lambda x: x[1]):
-                                    if i[1] > num:
-                                        ch = i[0]
-                                        break
-                                position = member.guild.get_channel(ch).position - 1
-                            except IndexError:
-                                num = max(all_nums) + 1
-                                no_missing = True
-                            except ValueError:
-                                no_created = True
-
-                            if no_created or no_missing:
-                                if no_created:
-                                    num = 1
+                    if sys['toggle']:
+                        if sys['origin'] == after.channel.id:
+                            # Create the new VC
+                            if not after.channel.category.permissions_for(member.guild.me).manage_channels:
+                                return
+                            if channel_name := sys['overrides'].get(
+                                str(member.id)
+                            ):
+                                num = 0
                                 public_vc = await member.guild.create_voice_channel(
-                                    name=sys['channel_name'].replace("{num}", str(num)),
+                                    name=channel_name,
                                     category=after.channel.category,
-                                    bitrate=min(sys['bitrate']*1000, member.guild.bitrate_limit),
-                                    reason=f"PublicRooms: created by {member.display_name}",
-                                )
-                            else:
-                                public_vc = await member.guild.create_voice_channel(
-                                    name=sys['channel_name'].replace("{num}", str(num)),
-                                    category=after.channel.category,
-                                    position=position,
+                                    position=after.channel.position+1,
                                     bitrate=min(sys['bitrate'] * 1000, member.guild.bitrate_limit),
                                     reason=f"PublicRooms: created by {member.display_name}",
                                 )
+                            else:
+                                # Find correct position of new channel
+                                no_created = False
+                                no_missing = False
+                                all_nums = [x[1] for x in sys['active']]
+                                try:
+                                    num = list(set(range(1, max(all_nums) + 1)) - set(all_nums))[0]
+                                    for i in sorted(sys['active'], key=lambda x: x[1]):
+                                        if i[1] > num:
+                                            ch = i[0]
+                                            break
+                                    position = member.guild.get_channel(ch).position - 1
+                                except IndexError:
+                                    num = max(all_nums) + 1
+                                    no_missing = True
+                                except ValueError:
+                                    no_created = True
 
-                        # Move creator to their new room
-                        if not (after.channel.permissions_for(member.guild.me).move_members and public_vc.permissions_for(member.guild.me).move_members):
-                            return
-                        await member.move_to(public_vc, reason="PublicRooms: is VC creator")
+                                if no_created:
+                                    num = 1
+                                    public_vc = await member.guild.create_voice_channel(
+                                        name=sys['channel_name'].replace("{num}", str(num)),
+                                        category=after.channel.category,
+                                        bitrate=min(sys['bitrate']*1000, member.guild.bitrate_limit),
+                                        reason=f"PublicRooms: created by {member.display_name}",
+                                    )
+                                elif no_missing:
+                                    public_vc = await member.guild.create_voice_channel(
+                                        name=sys['channel_name'].replace("{num}", str(num)),
+                                        category=after.channel.category,
+                                        bitrate=min(sys['bitrate']*1000, member.guild.bitrate_limit),
+                                        reason=f"PublicRooms: created by {member.display_name}",
+                                    )
+                                else:
+                                    public_vc = await member.guild.create_voice_channel(
+                                        name=sys['channel_name'].replace("{num}", str(num)),
+                                        category=after.channel.category,
+                                        position=position,
+                                        bitrate=min(sys['bitrate'] * 1000, member.guild.bitrate_limit),
+                                        reason=f"PublicRooms: created by {member.display_name}",
+                                    )
 
-                        # If log channel set, then send logs
-                        log_channel, embed_links = await self._get_log(sys['log_channel'], member.guild)
-                        if log_channel:
-                            await self._send_log(
-                                channel=log_channel,
-                                text=f"{member.mention} created `{public_vc.name}`",
-                                color=discord.Color.teal(),
-                                embed_links=embed_links,
-                            )
+                                                # Move creator to their new room
+                            if (
+                                not after.channel.permissions_for(
+                                    member.guild.me
+                                ).move_members
+                                or not public_vc.permissions_for(
+                                    member.guild.me
+                                ).move_members
+                            ):
+                                return
+                            await member.move_to(public_vc, reason="PublicRooms: is VC creator")
 
-                        # Add to active list
-                        sys['active'].append((public_vc.id, num))
+                            # If log channel set, then send logs
+                            log_channel, embed_links = await self._get_log(sys['log_channel'], member.guild)
+                            if log_channel:
+                                await self._send_log(
+                                    channel=log_channel,
+                                    text=f"{member.mention} created `{public_vc.name}`",
+                                    color=discord.Color.teal(),
+                                    embed_links=embed_links,
+                                )
 
-                        break
+                            # Add to active list
+                            sys['active'].append((public_vc.id, num))
 
-                    # Member joined an active PublicRoom
-                    elif sys['toggle'] and sys['log_channel'] and after.channel.id in [x[0] for x in sys['active']]:
-                        log_channel, embed_links = await self._get_log(sys['log_channel'], member.guild)
-                        if log_channel:
-                            await self._send_log(
-                                channel=log_channel,
-                                text=f"{member.mention} joined `{after.channel.name}`",
-                                color=discord.Color.magenta(),
-                                embed_links=embed_links,
-                            )
+                            break
+
+                        elif sys['log_channel'] and after.channel.id in [
+                            x[0] for x in sys['active']
+                        ]:
+                            log_channel, embed_links = await self._get_log(sys['log_channel'], member.guild)
+                            if log_channel:
+                                await self._send_log(
+                                    channel=log_channel,
+                                    text=f"{member.mention} joined `{after.channel.name}`",
+                                    color=discord.Color.magenta(),
+                                    embed_links=embed_links,
+                                )
 
     @staticmethod
     async def _get_log(channel_id, guild: discord.Guild):
@@ -478,9 +499,13 @@ class PublicRooms(commands.Cog):
 
             for user, name in systems[system_name]["overrides"].items():
                 overrides += f"{(await self.bot.get_or_fetch_member(ctx.guild, int(user))).mention}: {name}\n"
-        if not overrides:
-            return await ctx.send("No custom channel name overrides found for this system.")
-        return await ctx.send(overrides)
+        return (
+            await ctx.send(overrides)
+            if overrides
+            else await ctx.send(
+                "No custom channel name overrides found for this system."
+            )
+        )
 
     @commands.bot_has_permissions(embed_links=True)
     @_publicrooms.command(name="view")
@@ -488,10 +513,14 @@ class PublicRooms(commands.Cog):
         """View the PublicRooms settings in this server."""
 
         settings = await self.config.guild(ctx.guild).all()
-        embed = discord.Embed(title="PublicRooms Settings", color=await ctx.embed_color(), description=f"""
+        embed = discord.Embed(
+            title="PublicRooms Settings",
+            color=await ctx.embed_color(),
+            description=f"""
         **Server Toggle:** {settings['toggle']}
-        {"**Systems:** None" if not settings['systems'] else ""}
-        """)
+        {"" if settings['systems'] else "**Systems:** None"}
+        """,
+        )
 
         for name, system in settings['systems'].items():
             origin, log = None, None

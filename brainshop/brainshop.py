@@ -85,13 +85,7 @@ class BrainShop(commands.Cog):
         starts_with_mention = message.content.startswith((f"<@{self.bot.user.id}>", f"<@!{self.bot.user.id}>"))
 
         # Command is in DMs
-        if not message.guild:
-
-            if not starts_with_mention or not global_auto:
-                return
-
-        # Command is in a server
-        else:
+        if message.guild:
 
             # Cog is disabled or bot cannot send messages in channel
             if await self.bot.cog_disabled_in_guild(self, message.guild) or not message.channel.permissions_for(message.guild.me).send_messages:
@@ -100,12 +94,12 @@ class BrainShop(commands.Cog):
             guild_settings = await self.config.guild(message.guild).all()
 
             # Not in auto-channel
-            if message.channel.id not in guild_settings["channels"]:
-                if (
-                        not starts_with_mention or  # Does not start with mention
-                        not (guild_settings["auto"] or global_auto)  # Both guild & global auto are toggled off
-                ):
-                    return
+            if message.channel.id not in guild_settings["channels"] and (
+                not starts_with_mention
+                or not guild_settings["auto"]
+                and not global_auto
+            ):
+                return
 
             # Check block/allow-lists
             if (
@@ -113,6 +107,9 @@ class BrainShop(commands.Cog):
                     (guild_settings["blocklist"] and message.channel.id in guild_settings["blocklist"])  # Channel in blocklist
             ):
                 return
+
+        elif not starts_with_mention or not global_auto:
+            return
 
         # Get BrainShop api key
         brainshop_api = await self.bot.get_shared_api_tokens("brainshop")
@@ -208,7 +205,7 @@ class BrainShop(commands.Cog):
         """View the server settings for BrainShop."""
         async with self.config.guild(ctx.guild).all() as guild_settings:
             setting_channels = {"channels": [], "blocklist": [], "allowlist": []}
-            for ch_type in setting_channels.keys():
+            for ch_type in setting_channels:
                 for c in guild_settings[ch_type]:
                     if ch := ctx.guild.get_channel(c):
                         setting_channels[ch_type].append(ch)
@@ -273,8 +270,8 @@ class BrainShop(commands.Cog):
         )
         instructions.add_field(
             name="6. Additional Customization",
-            value=f"If you would like to customize your BrainShop AI, read through their documentation. For example, follow the instructions at http://brainshop.ai/node/274434 for naming the AI, and also see https://brainshop.ai/node/277098 for customizing attributes.",
-            inline=False
+            value="If you would like to customize your BrainShop AI, read through their documentation. For example, follow the instructions at http://brainshop.ai/node/274434 for naming the AI, and also see https://brainshop.ai/node/277098 for customizing attributes.",
+            inline=False,
         )
         instructions.add_field(
             name="7. Finish Setup",
@@ -295,8 +292,8 @@ class BrainShop(commands.Cog):
             color=await ctx.embed_color(),
             description=f"""
             **Global Toggle:** {await self.config.auto()}
-            **Brain ID**: {brainshop_api.get("bid") if brainshop_api.get("bid") else f"Not set (see `{ctx.clean_prefix}brainshopset setup`)."}
-            """
+            **Brain ID**: {brainshop_api.get("bid") or f"Not set (see `{ctx.clean_prefix}brainshopset setup`)."}
+            """,
         )
 
         if show_api_key:

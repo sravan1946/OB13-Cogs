@@ -71,27 +71,27 @@ class NoDMs(commands.Cog):
     async def before_invoke_hook(self, ctx: commands.Context):
 
         if (
-                self.toggle and  # NoDMs toggled on
-                (ctx.channel == ctx.author.dm_channel) and  # Command is in DMs
-                (ctx.author.id not in ctx.bot.owner_ids) and  # Author is not a bot owner
-                (not isinstance(ctx.command, commands.commands._AlwaysAvailableMixin))  # Command is not always-available
+            not self.toggle
+            or ctx.channel != ctx.author.dm_channel
+            or ctx.author.id in ctx.bot.owner_ids
+            or isinstance(ctx.command, commands.commands._AlwaysAvailableMixin)
         ):
-
-            # Check allowlist
-            if self.allowed:
-                if ctx.author.id not in self.allowed:
-                    await self._error_message(ctx=ctx)
-                    raise commands.CheckFailure()
-
-            # Check blocklist
-            elif self.blocked:
-                if ctx.author.id in self.blocked:
-                    await self._error_message(ctx=ctx)
-                    raise commands.CheckFailure()
-
-            else:
+            return
+        # Check allowlist
+        if self.allowed:
+            if ctx.author.id not in self.allowed:
                 await self._error_message(ctx=ctx)
                 raise commands.CheckFailure()
+
+        # Check blocklist
+        elif self.blocked:
+            if ctx.author.id in self.blocked:
+                await self._error_message(ctx=ctx)
+                raise commands.CheckFailure()
+
+        else:
+            await self._error_message(ctx=ctx)
+            raise commands.CheckFailure()
 
     async def _error_message(self, ctx: commands.Context):
         if self.message:

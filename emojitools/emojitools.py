@@ -166,11 +166,15 @@ class EmojiTools(commands.Cog):
     async def _folders(self, ctx: commands.Context):
         """List all your saved EmojiTools folders."""
 
-        dir_string = ""
-        for ind, d in enumerate(sorted(os.listdir(f"{data_manager.cog_data_path(self)}"))):
-            if os.path.isdir(os.path.join(f"{data_manager.cog_data_path(self)}", d)):
-                dir_string += f"{ind}. {d}\n"
-
+        dir_string = "".join(
+            f"{ind}. {d}\n"
+            for ind, d in enumerate(
+                sorted(os.listdir(f"{data_manager.cog_data_path(self)}"))
+            )
+            if os.path.isdir(
+                os.path.join(f"{data_manager.cog_data_path(self)}", d)
+            )
+        )
         return await ctx.maybe_send_embed(dir_string or f"You have no EmojiTools folders yet. Save emojis with `{ctx.clean_prefix}emojitools save`!")
 
     @commands.cooldown(rate=1, per=60)
@@ -503,13 +507,10 @@ class EmojiTools(commands.Cog):
 
     async def _zip_emojis(self, emojis: list, file_name: str):
 
-        emojis_list: list = []
-        for e in emojis:
-            emojis_list.append({
-                "stream": self._generate_emoji(e),
-                "name": f"{e.name}{self._ext(e)}"
-            })
-
+        emojis_list: list = [
+            {"stream": self._generate_emoji(e), "name": f"{e.name}{self._ext(e)}"}
+            for e in emojis
+        ]
         stream = AioZipStream(emojis_list, chunksize=32768)
         with BytesIO() as z:
             async for chunk in stream.stream():

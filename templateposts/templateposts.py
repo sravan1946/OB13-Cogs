@@ -59,11 +59,11 @@ class TemplatePosts(commands.Cog):
 
         # Ignore these messages
         if (
-                await self.bot.cog_disabled_in_guild(self, message.guild) or  # Cog disabled in guild
-                not await self.config.guild(message.guild).toggle() or  # TemplatePosts toggled off
-                message.author.bot or  # Message author is a bot
-                list(set([r.id for r in message.author.roles]) & set(ignored['roles'])) or  # Author has ignored role
-                message.author.id in ignored['users']  # Author is in ignore list
+            await self.bot.cog_disabled_in_guild(self, message.guild)
+            or not await self.config.guild(message.guild).toggle()
+            or message.author.bot
+            or list({r.id for r in message.author.roles} & set(ignored['roles']))
+            or message.author.id in ignored['users']
         ):
             return
 
@@ -73,10 +73,11 @@ class TemplatePosts(commands.Cog):
                 if not template['toggle']:
                     return
 
-                missing = []
-                for f in template['fields']:
-                    if f.lower() not in message.content.lower():
-                        missing.append(f)
+                missing = [
+                    f
+                    for f in template['fields']
+                    if f.lower() not in message.content.lower()
+                ]
                 if template.get("attachment", False) and not message.attachments:
                     missing.append("Message Attachment")
 
@@ -175,11 +176,7 @@ class TemplatePosts(commands.Cog):
         async with self.config.guild(ctx.guild).templates() as templates:
             if not templates.get(template_name):
                 return await ctx.send("There is no template with that name!")
-            if message:
-                templates[template_name]["message"] = message
-            else:
-                templates[template_name]["message"] = ""
-
+            templates[template_name]["message"] = message or ""
         return await ctx.tick()
 
     @_edit.command(name="channel")
@@ -292,16 +289,20 @@ class TemplatePosts(commands.Cog):
             **Send DM:** {settings['dm']}
             **Ignored Roles:** {humanize_list(ignored_roles) if ignored_roles else None}
             **Ignored Users:** {humanize_list([(await self.bot.get_or_fetch_member(ctx.guild, u)).mention for u in settings['ignore']['users']]) if settings['ignore']['users'] else None}
-            {"**Templates:** None" if not settings['templates'] else ""}
-            """
+            {"" if settings['templates'] else "**Templates:** None"}
+            """,
         )
 
         for name, template in settings['templates'].items():
-            embed.add_field(name=f"Template `{name}`", inline=False, value=f"""**Toggle:** {template['toggle']}
+            embed.add_field(
+                name=f"Template `{name}`",
+                inline=False,
+                value=f"""**Toggle:** {template['toggle']}
             **Channel:** {ctx.guild.get_channel(template['channel']).mention if ctx.guild.get_channel(template['channel']) else None}
-            **DM Message:** {template['message'] if template['message'] else None}
+            **DM Message:** {template['message'] or None}
             **Fields:** {humanize_list([f'`{f}`' for f in template['fields']])}
             **Require Attachments:** {template.get('attachment', False)}
-            """)
+            """,
+            )
 
         return await ctx.send(embed=embed)

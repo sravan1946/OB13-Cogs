@@ -190,7 +190,7 @@ class BotAccess(commands.Cog):
 
     @staticmethod
     async def _role_overlap(supporting_roles: list, member: discord.Member):
-        return bool(list(set(supporting_roles) & set(r.id for r in member.roles)))
+        return bool(list(set(supporting_roles) & {r.id for r in member.roles}))
 
     async def _fill_template(self, template: str):
         invite_url = await self.bot.get_cog("Core")._invite_url()
@@ -200,21 +200,13 @@ class BotAccess(commands.Cog):
 
     async def _send_thanks(self, message: dict):
         if message["toggle"]:
-            if not message["content"]:
-                to_send = THANKS
-            else:
-                to_send = message["content"]
+            to_send = message["content"] or THANKS
             return await self._fill_template(to_send)
         return None
 
     @staticmethod
     async def _send_expire(message: dict):
-        if message["toggle"]:
-            if not message["content"]:
-                return EXPIRE
-            else:
-                return message["content"]
-        return None
+        return message["content"] or EXPIRE if message["toggle"] else None
 
     @commands.group(name="botaccess")
     async def _bot_access(self, ctx: commands.Context):
@@ -224,32 +216,30 @@ class BotAccess(commands.Cog):
     async def _servers(self, ctx: commands.Context):
         """View and modify your current BotAccess server(s)."""
         user_settings = await self.config.user(ctx.author).all()
-        if user_settings["supporting_in"]:
-            await ctx.send(embed=discord.Embed(
-                title="BotAccess Servers",
-                description=f"{humanize_list([f'`{gu.name}` (`{g}`)' if (gu := self.bot.get_guild(g)) else f'`{g}`' for g in user_settings['servers']])}",
-                color=await ctx.embed_color()
-            ))
-            await ctx.send_help()
-        else:
+        if not user_settings["supporting_in"]:
             return await ctx.send(await self.config.not_supporting() or NOT_SUPPORTING)
+        await ctx.send(embed=discord.Embed(
+            title="BotAccess Servers",
+            description=f"{humanize_list([f'`{gu.name}` (`{g}`)' if (gu := self.bot.get_guild(g)) else f'`{g}`' for g in user_settings['servers']])}",
+            color=await ctx.embed_color()
+        ))
+        await ctx.send_help()
 
     @_servers.command("add", require_var_positional=True)
     async def _servers_add(self, ctx: commands.Context, *servers: int):
         """Add to your allowed BotAccess server(s)."""
         async with self.config.user(ctx.author).all() as user_settings:
-            if user_settings["supporting_in"]:
-                if user_settings["end_timestamp"]:
-                    return await ctx.send("You are no longer a supporter, and cannot add more BotAccess servers.")
-                limit = await self.config.limit()
-                if len(user_settings["servers"]) + len(servers) > limit:
-                    return await ctx.send(f"You are limited to {limit} BotAccess servers, and already have {len(user_settings['servers'])} servers!")
-                for server in servers:
-                    if server not in user_settings["servers"]:
-                        user_settings["servers"].append(server)
-                return await ctx.tick()
-            else:
+            if not user_settings["supporting_in"]:
                 return await ctx.send(await self.config.not_supporting() or NOT_SUPPORTING)
+            if user_settings["end_timestamp"]:
+                return await ctx.send("You are no longer a supporter, and cannot add more BotAccess servers.")
+            limit = await self.config.limit()
+            if len(user_settings["servers"]) + len(servers) > limit:
+                return await ctx.send(f"You are limited to {limit} BotAccess servers, and already have {len(user_settings['servers'])} servers!")
+            for server in servers:
+                if server not in user_settings["servers"]:
+                    user_settings["servers"].append(server)
+            return await ctx.tick()
 
     @_servers.command("remove", aliases=["delete"], require_var_positional=True)
     async def _servers_remove(self, ctx: commands.Context, *servers: int):
@@ -257,34 +247,31 @@ class BotAccess(commands.Cog):
         main_servers = await self.config.main_servers()
         allowed = await self.config.allowed()
         async with self.config.user(ctx.author).all() as user_settings:
-            if user_settings["supporting_in"]:
-                for server in servers:
-                    if server in user_settings["servers"]:
-                        if guild := self.bot.get_guild(server):
-                            if guild.id not in allowed and str(guild.id) not in main_servers.keys():
-                                await guild.leave()
-                        user_settings["servers"].remove(server)
-                    else:
-                        await ctx.send(f"`{server}` was not in your BotAccess servers!")
-                return await ctx.tick()
-            else:
+            if not user_settings["supporting_in"]:
                 return await ctx.send(await self.config.not_supporting() or NOT_SUPPORTING)
+            for server in servers:
+                if server in user_settings["servers"]:
+                    if guild := self.bot.get_guild(server):
+                        if guild.id not in allowed and str(guild.id) not in main_servers.keys():
+                            await guild.leave()
+                    user_settings["servers"].remove(server)
+                else:
+                    await ctx.send(f"`{server}` was not in your BotAccess servers!")
+            return await ctx.tick()
 
     @_bot_access.command(name="invite")
     async def _invite(self, ctx: commands.Context):
         """Have the bot invite link and thank you message be resent to you."""
         settings = await self.config.user(ctx.author).all()
-        if settings["supporting_in"]:
-            to_send = await self._send_thanks((await self.config.messages())["thanks"])
-            if to_send:
-                try:
-                    await ctx.author.send(to_send)
-                except discord.HTTPException:
-                    pass
-            else:
-                return await ctx.send("No invite message found. Please contact the bot owner for more details.")
-        else:
+        if not settings["supporting_in"]:
             return await ctx.send(await self.config.not_supporting() or NOT_SUPPORTING)
+        to_send = await self._send_thanks((await self.config.messages())["thanks"])
+        if not to_send:
+            return await ctx.send("No invite message found. Please contact the bot owner for more details.")
+        try:
+            await ctx.author.send(to_send)
+        except discord.HTTPException:
+            pass
 
     @commands.is_owner()
     @_bot_access.group(name="set")
@@ -505,7 +492,7 @@ class BotAccess(commands.Cog):
                 main_servers_list.append(gu)
 
         original_settings = await self.config.all_users()
-        original_users = [u for u in original_settings.keys()]
+        original_users = list(original_settings.keys())
         await self.config.clear_all_users()
         refreshed_settings = {}
         new_users: typing.List[discord.Member] = []

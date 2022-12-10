@@ -133,42 +133,36 @@ class ReactionPolls(commands.Cog):
         if numbers:
             nothing = False
 
-            start = int(numbers.group(1)) if not numbers.group(1).startswith("inf") else 11
-            end = int(numbers.group(2)) if not numbers.group(2).startswith("inf") else 11
+            start = 11 if numbers[1].startswith("inf") else int(numbers[1])
+            end = 11 if numbers[2].startswith("inf") else int(numbers[2])
 
             if start <= end:
-                for i in range(start, end + 1, 1):
-                    reactions_to_add.append(NUMBER_REACTIONS[i])
+                reactions_to_add.extend(NUMBER_REACTIONS[i] for i in range(start, end + 1))
             else:
-                for i in range(start, end - 1, -1):
-                    reactions_to_add.append(NUMBER_REACTIONS[i])
-
+                reactions_to_add.extend(NUMBER_REACTIONS[i] for i in range(start, end - 1, -1))
         # Letter range was included
         if letters:
             nothing = False
 
-            start = ord(letters.group(1))
-            end = ord(letters.group(2))
+            start = ord(letters[1])
+            end = ord(letters[2])
 
             if start <= end:
-                for i in range(start, end + 1, 1):
-                    reactions_to_add.append(LETTER_REACTIONS[chr(i)])
+                reactions_to_add.extend(
+                    LETTER_REACTIONS[chr(i)] for i in range(start, end + 1)
+                )
             else:
-                for i in range(start, end - 1, -1):
-                    reactions_to_add.append(LETTER_REACTIONS[chr(i)])
-
+                reactions_to_add.extend(
+                    LETTER_REACTIONS[chr(i)] for i in range(start, end - 1, -1)
+                )
         # Emojis were detected in message content
         if emojis:
             nothing = False
-            
-            for e in emojis:
-                reactions_to_add.append(e)
 
+            reactions_to_add.extend(iter(emojis))
         # None of the above was included, use defaults
         if nothing:
-            for e in ch_settings["defaults"]:
-                reactions_to_add.append(e)
-
+            reactions_to_add.extend(iter(ch_settings["defaults"]))
         # Allow up to 20 reactions to try adding
         if len(reactions_to_add) > 20:
             reactions_to_add = reactions_to_add[:20]

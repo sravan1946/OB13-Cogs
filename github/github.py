@@ -146,17 +146,14 @@ class GitHub(commands.Cog):
     async def _url_from_config(feed_config: dict):
         final_url = f"https://github.com/{feed_config['user']}/{feed_config['repo']}"
 
-        if feed_config['branch']:
+        if not feed_config['branch']:
+            return f"{final_url}/commits.atom"
+        token = f"?token={feed_config['token']}" if feed_config["token"] else ""
 
-            token = f"?token={feed_config['token']}" if feed_config["token"] else ""
+        if feed_config['branch'] == "releases":
+            return f"{final_url}/{feed_config['branch']}.atom{token}"
 
-            if feed_config['branch'] == "releases":
-                return final_url + f"/{feed_config['branch']}.atom{token}"
-
-            return final_url + f"/commits/{feed_config['branch']}.atom{token}"
-
-        else:
-            return final_url + f"/commits.atom"
+        return f"{final_url}/commits/{feed_config['branch']}.atom{token}"
 
     @staticmethod
     async def _fetch(url: str, valid_statuses: list):
@@ -186,7 +183,13 @@ class GitHub(commands.Cog):
             url = url[1:-1]
 
         parsed_url = urlparse(url)
-        if not (user_repo_branch := USER_REPO_BRANCH_REGEX.search(parsed_url.path if (parsed_url.path.endswith("/") or ".atom" in parsed_url.path) else parsed_url.path+"/")):
+        if not (
+            user_repo_branch := USER_REPO_BRANCH_REGEX.search(
+                parsed_url.path
+                if (parsed_url.path.endswith("/") or ".atom" in parsed_url.path)
+                else f"{parsed_url.path}/"
+            )
+        ):
             return None, None, None, None
 
         user, repo, branch, token = user_repo_branch.group(1), user_repo_branch.group(2), user_repo_branch.group(4), TOKEN_REGEX.fullmatch(parsed_url.query).group(1) if parsed_url.query else None
@@ -208,10 +211,16 @@ class GitHub(commands.Cog):
 
     async def _parse_url_input(self, url: str, branch: str):
         user, repo, parsed_branch, token = await self._parse_url(url)
-        if not any([user, repo, parsed_branch, token]):
-            return None
-
-        return {"user": user, "repo": repo, "branch": parsed_branch if token else branch, "token": token}
+        return (
+            {
+                "user": user,
+                "repo": repo,
+                "branch": parsed_branch if token else branch,
+                "token": token,
+            }
+            if any([user, repo, parsed_branch, token])
+            else None
+        )
 
     async def _get_feed_channel(self, bot: discord.Member, guild_channel: int, feed_channel):
         channel = None
@@ -227,7 +236,7 @@ class GitHub(commands.Cog):
         if not entries:
             return None
 
-        user, repo, branch, __ = await self._parse_url(feed_link+".atom")
+        user, repo, branch, __ = await self._parse_url(f"{feed_link}.atom")
 
         if branch == "releases":
             embed = discord.Embed(
@@ -240,13 +249,12 @@ class GitHub(commands.Cog):
 
         else:
             num = min(len(entries), 10)
-            desc = ""
-            for e in entries[:num]:
-                if short:
-                    desc += f"[`{COMMIT_REGEX.fullmatch(e.link).group(1)[:7]}`]({e.link}) {self._escape(e.title)} – {self._escape(e.author)}\n"
-                else:
-                    desc += f"[`{COMMIT_REGEX.fullmatch(e.link).group(1)[:7]}`]({e.link}) – {self._escape(e.author)}\n{LONG_COMMIT_REGEX.sub('', e.content[0].value)}\n\n"
-
+            desc = "".join(
+                f"[`{COMMIT_REGEX.fullmatch(e.link).group(1)[:7]}`]({e.link}) {self._escape(e.title)} – {self._escape(e.author)}\n"
+                if short
+                else f"[`{COMMIT_REGEX.fullmatch(e.link).group(1)[:7]}`]({e.link}) – {self._escape(e.author)}\n{LONG_COMMIT_REGEX.sub('', e.content[0].value)}\n\n"
+                for e in entries[:num]
+            )
             embed = discord.Embed(
                 title=f"[{repo}:{branch}] {num} new commit{'s' if num > 1 else ''}",
                 color=color if color is not None else COLOR,
@@ -294,7 +302,9 @@ class GitHub(commands.Cog):
     async def _set_color(self, ctx: commands.Context, hex_color: typing.Union[discord.Color, ExplicitNone]):
         """Set the GitHub RSS feed embed color for the server (enter "None" to reset)."""
         await self.config.guild(ctx.guild).color.set(hex_color.value if hex_color is not None else None)
-        return await ctx.send(f"The GitHub RSS feed embed color has been set to {hex_color if hex_color else 'the default'}.")
+        return await ctx.send(
+            f"The GitHub RSS feed embed color has been set to {hex_color or 'the default'}."
+        )
 
     @_github_set.command(name="notify")
     async def _set_notify(self, ctx: commands.Context, true_or_false: bool):
@@ -318,7 +328,7 @@ class GitHub(commands.Cog):
         """Set the GitHub role requirement."""
         if not role:
             await self.config.guild(ctx.guild).role.set(None)
-            return await ctx.send(f"The GitHub RSS feed role requirement has been removed.")
+            return await ctx.send("The GitHub RSS feed role requirement has been removed.")
         else:
             await self.config.guild(ctx.guild).role.set(role.id)
             return await ctx.send(f"The GitHub RSS feed role has been set to {role.mention}.")
@@ -552,10 +562,12 @@ class GitHub(commands.Cog):
 
         # Send confirmation
         if guild_config["notify"]:
-            await channel.send(embed=discord.Embed(
-                color=discord.Color.green(),
-                description=f"[[{user_repo_branch_token['repo']}:{(await self._parse_url(parsed.feed.link+'.atom'))[2]}]]({await self._repo_url(**user_repo_branch_token)}) has been added by {ctx.author.mention}"
-            ))
+            await channel.send(
+                embed=discord.Embed(
+                    color=discord.Color.green(),
+                    description=f"[[{user_repo_branch_token['repo']}:{(await self._parse_url(f'{parsed.feed.link}.atom'))[2]}]]({await self._repo_url(**user_repo_branch_token)}) has been added by {ctx.author.mention}",
+                )
+            )
 
         # Send last feed entry
         await channel.send(embed=await self._commit_embeds(

@@ -158,7 +158,7 @@ class ImprovTime(commands.Cog):
     @_improvtime.command(name="wordlimit")
     async def _word_limit(self, ctx: commands.Context, num: int):
         """Set the the maximum words allowed for each story message."""
-        if not num > 0:
+        if num <= 0:
             return await ctx.send("Please enter a positive integer.")
         await self.config.guild(ctx.guild).word_limit.set(num)
         return await ctx.tick()
@@ -171,11 +171,11 @@ class ImprovTime(commands.Cog):
         settings = await self.config.guild(ctx.guild).all()
 
         phrases = settings["phrase_list"]
-        phrases_string = ""
+        phrases_string = "".join(
+            f"{phrase_index}. {phrase}\n"
+            for phrase_index, phrase in enumerate(phrases)
+        )
 
-        for phrase_index, phrase in enumerate(phrases):
-            phrases_string += f"{phrase_index}. {phrase}\n"
-        
         channel = None
         if settings["channel"] and (ch := ctx.guild.get_channel(settings["channel"])):
             channel = ch.mention
